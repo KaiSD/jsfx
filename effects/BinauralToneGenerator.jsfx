@@ -1,0 +1,62 @@
+// This effect Copyright (C) 2023 and later by Ivan Korystin
+// License: LGPL - http://www.gnu.org/licenses/lgpl.html
+
+desc: Binaural Tone Generator with MIDI-in support
+//tags: generator synthesis
+//author: Ivan Korystin
+
+slider1:-12<-120,6,1>Volume (dB)
+slider2:440<20,24000,1>Tunning Frequency (Hz)
+slider3:0<0,1, 1{Do, Do not}>Hold note?
+slider4:0<0,120,1>Left/Right Frequency Difference (Hz)
+slider5:0<0,2,1{Sine,Triangle,Saw}>Wave Shape
+
+in_pin:left input
+in_pin:right input
+out_pin:left output
+out_pin:right output
+
+@init
+note = -1;
+
+@slider
+  vol=2 ^ (slider1/6); 
+
+@block
+while (midirecv(offset, msg1, msg2, msg3)) (
+  msg1 == $x90 && msg3 != 0 ? (
+    note = msg2 & 0x7F;
+  ) : (
+    midisend( offset, msg1, msg2, msg3);
+    (slider3 == 1 && note == msg2 & 0x7F) ? (
+     note = -1;
+    );
+  );
+);
+
+@sample
+(slider5 == 0) ? (
+  toneL = cos(posL);
+  toneR = cos(posR);
+) : 
+(slider5 == 1) ? (
+  toneL = 2.0 * posL / $pi-1.0;
+  (toneL > 1.0) ? toneL = 2.0-toneL;
+  toneR = 2.0 * posR / $pi-1.0;
+  (toneR > 1.0) ? toneR = 2.0-toneR;
+) : (
+  toneL = 1.0 - posL / $pi;
+  toneR = 1.0 - posR / $pi;
+);
+
+(note >= 0) ? (
+  toneL *= vol;
+  toneR *= vol;
+  spl0 = toneL;
+  spl1 = toneR;
+);
+
+posL = posL + 2.0 * $pi * (slider2+slider4/2)*(2^(note/12 - 4))/srate;
+(posL >= 2.0*$pi) ? posL -= 2.0 * $pi;
+posR = posR + 2.0 * $pi * (slider2-slider4/2)*(2^(note/12 - 4))/srate;
+(posR >= 2.0*$pi) ? posR -= 2.0 * $pi;
